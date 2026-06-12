@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, CSSProperties, ReactNode } from "react";
 
 // ── Design Tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -16,7 +16,50 @@ const C = {
   successBg: "#D8F3DC",
   error: "#B91C1C",
   errorBg: "#FEE2E2",
-};
+} as const;
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+interface Assessment {
+  title: string;
+  description: string;
+  points: number;
+  measureGoal?: string;
+}
+
+interface Week {
+  topic: string;
+  overview: string;
+  reading?: string;
+  lectureIdeas?: string[];
+  assessment?: Assessment | null;
+}
+
+interface GradingItem {
+  category: string;
+  weight: number;
+}
+
+interface Generated {
+  goals: string[];
+  gradingBreakdown: GradingItem[];
+  weeks: Week[];
+}
+
+interface CourseState {
+  title: string;
+  subject: string;
+  level: string;
+  credits: string;
+  weeks: string;
+  meetingPattern: string;
+  textbook: string;
+  description: string;
+  learningGoals: string;
+  existingSyllabus: string;
+  assessmentGoals: string;
+}
+
+type BtnVariant = "primary" | "secondary" | "dark" | "ghost";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const STEPS = ["Course Info", "Curriculum", "Generate", "Blueprint"];
@@ -35,17 +78,38 @@ const STATUS_MESSAGES = [
   "Finalizing your blueprint…",
 ];
 
-// ── Tiny UI Components ────────────────────────────────────────────────────────
-function Label({ children, hint }) {
+// ── Shared Styles ─────────────────────────────────────────────────────────────
+const inputStyle: CSSProperties = {
+  width: "100%",
+  padding: "10px 12px",
+  border: `1.5px solid ${C.border}`,
+  borderRadius: 8,
+  fontFamily: "Inter,sans-serif",
+  fontSize: 14,
+  color: C.text,
+  background: C.white,
+  outline: "none",
+  boxSizing: "border-box",
+  lineHeight: 1.5,
+};
+
+// ── Small UI Components ───────────────────────────────────────────────────────
+function Label({ children, hint }: { children: ReactNode; hint?: string }) {
   return (
     <div style={{ marginBottom: 6 }}>
-      <span style={{ fontFamily: "Inter,sans-serif", fontSize: 13, fontWeight: 600, color: C.slate }}>{children}</span>
-      {hint && <p style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: C.muted, margin: "2px 0 0" }}>{hint}</p>}
+      <span style={{ fontFamily: "Inter,sans-serif", fontSize: 13, fontWeight: 600, color: C.slate }}>
+        {children}
+      </span>
+      {hint && (
+        <p style={{ fontFamily: "Inter,sans-serif", fontSize: 12, color: C.muted, margin: "2px 0 0" }}>
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
 
-function Field({ label, hint, children }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <div style={{ marginBottom: 20 }}>
       <Label hint={hint}>{label}</Label>
@@ -54,56 +118,88 @@ function Field({ label, hint, children }) {
   );
 }
 
-const inputStyle = {
-  width: "100%", padding: "10px 12px", border: `1.5px solid ${C.border}`,
-  borderRadius: 8, fontFamily: "Inter,sans-serif", fontSize: 14, color: C.text,
-  background: C.white, outline: "none", boxSizing: "border-box", lineHeight: 1.5,
-};
-
-function Input({ value, onChange, placeholder }) {
-  return <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={inputStyle} />;
-}
-
-function Textarea({ value, onChange, placeholder, rows = 4 }) {
-  return <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows} style={{ ...inputStyle, resize: "vertical" }} />;
-}
-
-function Select({ value, onChange, options }) {
+function Input({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
   return (
-    <select value={value} onChange={e => onChange(e.target.value)}
-      style={{ ...inputStyle, appearance: "none", cursor: "pointer" }}>
+    <input
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      style={inputStyle}
+    />
+  );
+}
+
+function Textarea({ value, onChange, placeholder, rows = 4 }: { value: string; onChange: (v: string) => void; placeholder?: string; rows?: number }) {
+  return (
+    <textarea
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={rows}
+      style={{ ...inputStyle, resize: "vertical" }}
+    />
+  );
+}
+
+function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: string[] }) {
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      style={{ ...inputStyle, appearance: "none" as CSSProperties["appearance"], cursor: "pointer" }}
+    >
       <option value="">— Select —</option>
       {options.map(o => <option key={o} value={o}>{o}</option>)}
     </select>
   );
 }
 
-function Btn({ onClick, children, variant = "primary", disabled = false, style: extra = {} }) {
-  const variants = {
-    primary: { background: C.gold, color: C.slate, border: "none" },
+function Btn({
+  onClick,
+  children,
+  variant = "primary",
+  disabled = false,
+  style: extra = {},
+}: {
+  onClick?: () => void;
+  children: ReactNode;
+  variant?: BtnVariant;
+  disabled?: boolean;
+  style?: CSSProperties;
+}) {
+  const variants: Record<BtnVariant, CSSProperties> = {
+    primary:   { background: C.gold,        color: C.slate, border: "none" },
     secondary: { background: "transparent", color: C.slate, border: `1.5px solid ${C.border}` },
-    dark: { background: C.slate, color: C.white, border: "none" },
-    ghost: { background: "transparent", color: C.gold, border: "none" },
+    dark:      { background: C.slate,       color: C.white, border: "none" },
+    ghost:     { background: "transparent", color: C.gold,  border: "none" },
   };
   return (
     <button
       onClick={disabled ? undefined : onClick}
       style={{
-        padding: "11px 22px", borderRadius: 8, fontFamily: "Inter,sans-serif",
-        fontWeight: 600, fontSize: 14, cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.45 : 1, transition: "opacity 0.2s",
-        ...variants[variant], ...extra,
+        padding: "11px 22px",
+        borderRadius: 8,
+        fontFamily: "Inter,sans-serif",
+        fontWeight: 600,
+        fontSize: 14,
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.45 : 1,
+        transition: "opacity 0.2s",
+        ...variants[variant],
+        ...extra,
       }}
-    >{children}</button>
+    >
+      {children}
+    </button>
   );
 }
 
 // ── Progress Bar ──────────────────────────────────────────────────────────────
-function ProgressBar({ step }) {
+function ProgressBar({ step }: { step: number }) {
   return (
     <div style={{ display: "flex", alignItems: "center", marginBottom: 40 }}>
       {STEPS.map((label, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", flex: i < STEPS.length - 1 ? 1 : "none" }}>
+        <div key={i} style={{ display: "flex", alignItems: "center", flex: i < STEPS.length - 1 ? 1 : undefined }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
             <div style={{
               width: 30, height: 30, borderRadius: "50%",
@@ -111,12 +207,16 @@ function ProgressBar({ step }) {
               color: i <= step ? C.white : C.muted,
               display: "flex", alignItems: "center", justifyContent: "center",
               fontWeight: 700, fontSize: 13, flexShrink: 0, transition: "all 0.3s",
-            }}>{i < step ? "✓" : i + 1}</div>
+            }}>
+              {i < step ? "✓" : i + 1}
+            </div>
             <span style={{
               fontSize: 11, fontWeight: i === step ? 700 : 400,
               color: i === step ? C.slate : C.muted,
               whiteSpace: "nowrap", fontFamily: "Inter,sans-serif",
-            }}>{label}</span>
+            }}>
+              {label}
+            </span>
           </div>
           {i < STEPS.length - 1 && (
             <div style={{
@@ -131,21 +231,26 @@ function ProgressBar({ step }) {
 }
 
 // ── Week Card ─────────────────────────────────────────────────────────────────
-function WeekCard({ week, index }) {
+function WeekCard({ week, index }: { week: Week; index: number }) {
   const [open, setOpen] = useState(index === 0);
   return (
     <div style={{ border: `1.5px solid ${C.border}`, borderRadius: 10, marginBottom: 10, overflow: "hidden", background: C.white }}>
-      <div onClick={() => setOpen(o => !o)} style={{
-        padding: "13px 16px", display: "flex", alignItems: "center",
-        justifyContent: "space-between", cursor: "pointer",
-        background: open ? C.ivory : C.white,
-      }}>
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{
+          padding: "13px 16px", display: "flex", alignItems: "center",
+          justifyContent: "space-between", cursor: "pointer",
+          background: open ? C.ivory : C.white,
+        }}
+      >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
             width: 26, height: 26, borderRadius: "50%", background: C.gold,
             display: "flex", alignItems: "center", justifyContent: "center",
             fontWeight: 700, fontSize: 11, color: C.slate, flexShrink: 0,
-          }}>{index + 1}</div>
+          }}>
+            {index + 1}
+          </div>
           <div>
             <div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 14, color: C.slate }}>
               {week.topic}
@@ -154,7 +259,9 @@ function WeekCard({ week, index }) {
               <span style={{
                 fontSize: 10, background: C.successBg, color: C.success,
                 borderRadius: 4, padding: "1px 6px", fontFamily: "Inter,sans-serif", fontWeight: 600,
-              }}>📋 {week.assessment.title}</span>
+              }}>
+                📋 {week.assessment.title}
+              </span>
             )}
           </div>
         </div>
@@ -171,11 +278,11 @@ function WeekCard({ week, index }) {
               <div style={{ fontFamily: "Inter,sans-serif", fontSize: 13, color: C.text }}>{week.reading}</div>
             </div>
           )}
-          {week.lectureIdeas?.length > 0 && (
+          {week.lectureIdeas && week.lectureIdeas.length > 0 && (
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 3 }}>💡 LECTURE IDEAS</div>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
-                {week.lectureIdeas.map((idea, i) => (
+                {week.lectureIdeas.map((idea: string, i: number) => (
                   <li key={i} style={{ fontFamily: "Inter,sans-serif", fontSize: 13, color: C.text, marginBottom: 3 }}>{idea}</li>
                 ))}
               </ul>
@@ -203,18 +310,18 @@ function WeekCard({ week, index }) {
 }
 
 // ── Export Helpers ────────────────────────────────────────────────────────────
-function toCanvasCSV(course, weeks) {
+function toCanvasCSV(_course: CourseState, weeks: Week[]): string {
   const rows = [["module_name", "item_name", "item_type", "description", "points", "published"]];
   weeks.forEach((w, i) => {
     const mod = `Week ${i + 1}: ${w.topic}`;
     rows.push([mod, `Lecture: ${w.topic}`, "Assignment", w.overview || "", "", "true"]);
     if (w.reading) rows.push([mod, `Reading: ${w.reading}`, "ExternalUrl", "", "", "true"]);
-    if (w.assessment) rows.push([mod, w.assessment.title, "Assignment", w.assessment.description || "", w.assessment.points || 100, "true"]);
+    if (w.assessment) rows.push([mod, w.assessment.title, "Assignment", w.assessment.description || "", String(w.assessment.points ?? 100), "true"]);
   });
   return rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
 }
 
-function toMoodleXML(course, weeks) {
+function toMoodleXML(course: CourseState, weeks: Week[]): string {
   const sections = weeks.map((w, i) => `
   <section number="${i + 1}">
     <name><![CDATA[Week ${i + 1}: ${w.topic}]]></name>
@@ -223,7 +330,7 @@ function toMoodleXML(course, weeks) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<moodle_backup>\n  <course>\n    <fullname><![CDATA[${course.title}]]></fullname>\n    <shortname>${(course.subject || "COURSE").substring(0, 10).toUpperCase().replace(/\s/g, "")}</shortname>\n  </course>\n  <sections>${sections}\n  </sections>\n</moodle_backup>`;
 }
 
-function toSyllabus(course, weeks, goals) {
+function toSyllabus(course: CourseState, weeks: Week[], goals: string[]): string {
   return [
     course.title || "Course Syllabus",
     "=".repeat(60),
@@ -253,7 +360,7 @@ function toSyllabus(course, weeks, goals) {
   ].join("\n");
 }
 
-function download(content, filename, mime) {
+function downloadFile(content: string, filename: string, mime: string): void {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -262,13 +369,17 @@ function download(content, filename, mime) {
 }
 
 // ── Streaming Generator ───────────────────────────────────────────────────────
-// NOTE: Anthropic's API requires server-side streaming (SSE) because browsers
-// cannot set custom headers on EventSource. In a real deployment, proxy this
-// through a lightweight backend (Next.js API route, Express, Cloudflare Worker).
-// For development with a local proxy, set REACT_APP_API_PROXY_URL in .env.
-// Falls back to a single non-streaming request if no proxy is configured.
-
-async function streamCourseGeneration({ course, onChunk, onDone, onError }) {
+async function streamCourseGeneration({
+  course,
+  onChunk,
+  onDone,
+  onError,
+}: {
+  course: CourseState;
+  onChunk: (chunk: string) => void;
+  onDone: () => void;
+  onError: (msg: string) => void;
+}): Promise<void> {
   const numWeeks = parseInt(course.weeks) || 15;
 
   const prompt = `You are an expert instructional designer for college courses. Design a complete, detailed ${numWeeks}-week course.
@@ -296,8 +407,8 @@ Return ONLY valid JSON (no markdown, no backticks, no preamble) with this struct
   "weeks": [
     {
       "topic": "Introduction and Course Overview",
-      "overview": "2-3 sentence overview of what this week covers and why it matters in the arc of the course.",
-      "reading": "Chapter 1 (pp. 1–24)",
+      "overview": "2-3 sentence overview of what this week covers and why it matters.",
+      "reading": "Chapter 1 (pp. 1-24)",
       "lectureIdeas": ["Discussion starter: ...", "Activity: ...", "Mini-lecture: ..."],
       "assessment": null
     }
@@ -311,14 +422,13 @@ Make every week substantive, pedagogically sound, and specific to the subject ma
   const proxyUrl = process.env.REACT_APP_API_PROXY_URL;
 
   if (proxyUrl) {
-    // ── Streaming via backend proxy ──────────────────────────────────────────
     try {
       const res = await fetch(`${proxyUrl}/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, model: "claude-sonnet-4-20250514", max_tokens: 6000 }),
       });
-      const reader = res.body.getReader();
+      const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
       while (true) {
@@ -326,25 +436,24 @@ Make every week substantive, pedagogically sound, and specific to the subject ma
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-        buffer = lines.pop();
+        buffer = lines.pop() ?? "";
         for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6).trim();
-            if (data === "[DONE]") continue;
-            try {
-              const event = JSON.parse(data);
-              const text = event?.delta?.text || "";
-              if (text) onChunk(text);
-            } catch {}
-          }
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6).trim();
+          if (data === "[DONE]") continue;
+          try {
+            const event = JSON.parse(data);
+            const text: string = event?.delta?.text ?? "";
+            if (text) onChunk(text);
+          } catch { /* skip */ }
         }
       }
       onDone();
-    } catch (err) {
-      onError(err.message);
+    } catch (err: unknown) {
+      onError(err instanceof Error ? err.message : "Unknown error");
     }
   } else {
-    // ── Fallback: single request with simulated character-by-character reveal ─
+    // Fallback: single request with simulated character-by-character reveal
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -357,11 +466,10 @@ Make every week substantive, pedagogically sound, and specific to the subject ma
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
-      const full = (data.content || []).map(b => b.text || "").join("");
-      // Simulate streaming by revealing chunks progressively
+      const full: string = (data.content || []).map((b: { text?: string }) => b.text || "").join("");
       const CHUNK = 40;
       let i = 0;
-      await new Promise(resolve => {
+      await new Promise<void>(resolve => {
         const tick = setInterval(() => {
           const slice = full.slice(i, i + CHUNK);
           if (slice) onChunk(slice);
@@ -370,8 +478,8 @@ Make every week substantive, pedagogically sound, and specific to the subject ma
         }, 16);
       });
       onDone();
-    } catch (err) {
-      onError(err.message);
+    } catch (err: unknown) {
+      onError(err instanceof Error ? err.message : "Unknown error");
     }
   }
 }
@@ -379,22 +487,22 @@ Make every week substantive, pedagogically sound, and specific to the subject ma
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function CourseDesignStudio() {
   const [step, setStep] = useState(0);
-  const [course, setCourse] = useState({
+  const [course, setCourse] = useState<CourseState>({
     title: "", subject: "", level: "", credits: "", weeks: "",
     meetingPattern: "", textbook: "", description: "",
     learningGoals: "", existingSyllabus: "", assessmentGoals: "",
   });
-  const [status, setStatus] = useState(""); // loading status message
+  const [status, setStatus] = useState("");
   const [statusIdx, setStatusIdx] = useState(0);
-  const [streamBuffer, setStreamBuffer] = useState(""); // raw streaming text
-  const [generated, setGenerated] = useState(null);
+  const [streamBuffer, setStreamBuffer] = useState("");
+  const [generated, setGenerated] = useState<any>(null);
   const [genError, setGenError] = useState("");
   const [exportFlash, setExportFlash] = useState("");
-  const statusTimer = useRef(null);
+  const statusTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const set = key => val => setCourse(c => ({ ...c, [key]: val }));
+  const set = (key: keyof CourseState) => (val: string) =>
+    setCourse(c => ({ ...c, [key]: val }));
 
-  // Cycle through status messages while generating
   useEffect(() => {
     if (status === "generating") {
       let idx = 0;
@@ -404,9 +512,9 @@ export default function CourseDesignStudio() {
         setStatusIdx(idx);
       }, 3500);
     } else {
-      clearInterval(statusTimer.current);
+      if (statusTimer.current) clearInterval(statusTimer.current);
     }
-    return () => clearInterval(statusTimer.current);
+    return () => { if (statusTimer.current) clearInterval(statusTimer.current); };
   }, [status]);
 
   async function generate() {
@@ -422,7 +530,7 @@ export default function CourseDesignStudio() {
         setStreamBuffer(prev => {
           try {
             const clean = prev.replace(/```json|```/g, "").trim();
-            const parsed = JSON.parse(clean);
+            const parsed: Generated = JSON.parse(clean);
             setGenerated(parsed);
             setStatus("done");
             setStep(3);
@@ -440,19 +548,19 @@ export default function CourseDesignStudio() {
     });
   }
 
-  function exportFile(type) {
+  function exportFile(type: string) {
+    if (!generated) return;
     const slug = (course.title || "course").replace(/\s+/g, "_");
-    if (type === "canvas") download(toCanvasCSV(course, generated.weeks), `${slug}_canvas.csv`, "text/csv");
-    else if (type === "moodle") download(toMoodleXML(course, generated.weeks), `${slug}_moodle.xml`, "application/xml");
-    else if (type === "syllabus") download(toSyllabus(course, generated.weeks, generated.goals), `${slug}_syllabus.txt`, "text/plain");
-    else download(JSON.stringify({ course, ...generated }, null, 2), `${slug}_data.json`, "application/json");
+    if (type === "canvas")   downloadFile(toCanvasCSV(course, generated.weeks),                     `${slug}_canvas.csv`,   "text/csv");
+    else if (type === "moodle")   downloadFile(toMoodleXML(course, generated.weeks),                `${slug}_moodle.xml`,   "application/xml");
+    else if (type === "syllabus") downloadFile(toSyllabus(course, generated.weeks, generated.goals), `${slug}_syllabus.txt`, "text/plain");
+    else                          downloadFile(JSON.stringify({ course, ...(generated || {}) }, null, 2),    `${slug}_data.json`,    "application/json");
     setExportFlash(type);
     setTimeout(() => setExportFlash(""), 3000);
   }
 
   const isGenerating = status === "generating";
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: "100vh", background: C.ivory, fontFamily: "Inter,sans-serif" }}>
 
@@ -477,15 +585,13 @@ export default function CourseDesignStudio() {
       <div style={{ maxWidth: 820, margin: "0 auto", padding: "36px 20px" }}>
         <ProgressBar step={step} />
 
-        {/* ── Step 0: Course Info ──────────────────────────────────────────── */}
+        {/* Step 0 — Course Info */}
         {step === 0 && (
           <div>
             <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 25, color: C.slate, margin: "0 0 6px" }}>
               Tell us about your course
             </h2>
-            <p style={{ color: C.muted, fontSize: 14, margin: "0 0 26px" }}>
-              Basic details to anchor your course blueprint.
-            </p>
+            <p style={{ color: C.muted, fontSize: 14, margin: "0 0 26px" }}>Basic details to anchor your course blueprint.</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <Field label="Course Title" hint="e.g., English Composition I">
                 <Input value={course.title} onChange={set("title")} placeholder="Introduction to Composition" />
@@ -517,11 +623,11 @@ export default function CourseDesignStudio() {
           </div>
         )}
 
-        {/* ── Step 1: Curriculum ───────────────────────────────────────────── */}
+        {/* Step 1 — Curriculum */}
         {step === 1 && (
           <div>
             <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 25, color: C.slate, margin: "0 0 6px" }}>
-              Curriculum & materials
+              Curriculum &amp; materials
             </h2>
             <p style={{ color: C.muted, fontSize: 14, margin: "0 0 26px" }}>
               The more detail you provide, the more tailored your blueprint will be.
@@ -548,28 +654,28 @@ export default function CourseDesignStudio() {
           </div>
         )}
 
-        {/* ── Step 2: Generate ─────────────────────────────────────────────── */}
+        {/* Step 2 — Generate */}
         {step === 2 && (
           <div>
             <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 25, color: C.slate, margin: "0 0 6px" }}>
               Generate your course blueprint
             </h2>
             <p style={{ color: C.muted, fontSize: 14, margin: "0 0 26px" }}>
-              Claude will build a full {course.weeks} schedule — weekly topics, lecture ideas, readings, and assessments tied to your goals.
+              Claude will build a full {course.weeks} schedule — weekly topics, lecture ideas, readings, and assessments.
             </p>
 
-            {/* Summary */}
+            {/* Summary card */}
             <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: 22, marginBottom: 24 }}>
               <h3 style={{ fontFamily: "'Playfair Display',serif", color: C.slate, fontSize: 16, margin: "0 0 14px" }}>Course Summary</h3>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px" }}>
-                {[
-                  ["Course", course.title || course.subject],
-                  ["Level", course.level],
-                  ["Credits", course.credits],
-                  ["Duration", course.weeks],
-                  ["Meets", course.meetingPattern],
-                  ["Textbook", course.textbook || "Not specified"],
-                ].map(([k, v]) => (
+                {([
+                  ["Course",    course.title || course.subject],
+                  ["Level",     course.level],
+                  ["Credits",   course.credits],
+                  ["Duration",  course.weeks],
+                  ["Meets",     course.meetingPattern],
+                  ["Textbook",  course.textbook || "Not specified"],
+                ] as [string, string][]).map(([k, v]) => (
                   <div key={k} style={{ display: "flex", gap: 8 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: C.muted, minWidth: 64 }}>{k}</span>
                     <span style={{ fontSize: 13, color: C.text }}>{v || "—"}</span>
@@ -581,18 +687,10 @@ export default function CourseDesignStudio() {
             {/* Streaming window */}
             {isGenerating && (
               <div style={{ background: C.slateDark, borderRadius: 12, padding: 22, marginBottom: 22 }}>
-                {/* Status header */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                  <div style={{
-                    width: 10, height: 10, borderRadius: "50%", background: C.gold,
-                    animation: "blink 1s ease-in-out infinite",
-                  }} />
-                  <span style={{ color: C.gold, fontWeight: 700, fontSize: 13 }}>
-                    {STATUS_MESSAGES[statusIdx]}
-                  </span>
+                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: C.gold, animation: "blink 1s ease-in-out infinite" }} />
+                  <span style={{ color: C.gold, fontWeight: 700, fontSize: 13 }}>{STATUS_MESSAGES[statusIdx]}</span>
                 </div>
-
-                {/* Progress bar */}
                 <div style={{ background: "#0D1520", borderRadius: 4, height: 4, marginBottom: 16, overflow: "hidden" }}>
                   <div style={{
                     height: "100%", background: C.gold, borderRadius: 4,
@@ -600,8 +698,6 @@ export default function CourseDesignStudio() {
                     transition: "width 0.5s ease",
                   }} />
                 </div>
-
-                {/* Live stream preview */}
                 <pre style={{
                   color: "#7FB5FF", fontSize: 11, fontFamily: "monospace",
                   maxHeight: 180, overflow: "hidden", margin: 0, whiteSpace: "pre-wrap",
@@ -610,7 +706,6 @@ export default function CourseDesignStudio() {
                   {streamBuffer.slice(-500)}
                   <span style={{ animation: "blink 0.8s step-end infinite", color: C.gold }}>▌</span>
                 </pre>
-
                 <p style={{ color: "#4A6FA5", fontSize: 11, margin: "12px 0 0", fontStyle: "italic" }}>
                   This usually takes 20–40 seconds for a full semester course.
                 </p>
@@ -629,14 +724,11 @@ export default function CourseDesignStudio() {
                 {isGenerating ? "⏳ Building blueprint…" : "✨ Generate Blueprint"}
               </Btn>
             </div>
-
-            <style>{`
-              @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-            `}</style>
+            <style>{`@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }`}</style>
           </div>
         )}
 
-        {/* ── Step 3: Blueprint ─────────────────────────────────────────────── */}
+        {/* Step 3 — Blueprint */}
         {step === 3 && generated && (
           <div>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 12 }}>
@@ -655,7 +747,9 @@ export default function CourseDesignStudio() {
 
             {/* Learning Goals */}
             <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: 20, marginBottom: 16 }}>
-              <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, color: C.slate, margin: "0 0 12px" }}>📌 Student Learning Outcomes</h3>
+              <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, color: C.slate, margin: "0 0 12px" }}>
+                📌 Student Learning Outcomes
+              </h3>
               <ol style={{ margin: 0, paddingLeft: 20 }}>
                 {generated.goals?.map((g, i) => (
                   <li key={i} style={{ fontFamily: "Inter,sans-serif", fontSize: 13, color: C.text, marginBottom: 6, lineHeight: 1.5 }}>{g}</li>
@@ -663,10 +757,12 @@ export default function CourseDesignStudio() {
               </ol>
             </div>
 
-            {/* Grading */}
+            {/* Grading Breakdown */}
             {generated.gradingBreakdown && (
               <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: 20, marginBottom: 16 }}>
-                <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, color: C.slate, margin: "0 0 14px" }}>📊 Grading Breakdown</h3>
+                <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, color: C.slate, margin: "0 0 14px" }}>
+                  📊 Grading Breakdown
+                </h3>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                   {generated.gradingBreakdown.map((g, i) => (
                     <div key={i} style={{ background: C.ivory, borderRadius: 8, padding: "10px 16px", textAlign: "center" }}>
@@ -679,28 +775,36 @@ export default function CourseDesignStudio() {
             )}
 
             {/* Weekly Schedule */}
-            <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, color: C.slate, margin: "20px 0 12px" }}>📅 Weekly Schedule</h3>
+            <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, color: C.slate, margin: "20px 0 12px" }}>
+              📅 Weekly Schedule
+            </h3>
             {generated.weeks?.map((week, i) => <WeekCard key={i} week={week} index={i} />)}
 
             {/* Export Panel */}
             <div style={{ background: C.slate, borderRadius: 14, padding: 26, marginTop: 32 }}>
-              <h3 style={{ fontFamily: "'Playfair Display',serif", color: C.white, fontSize: 18, margin: "0 0 6px" }}>Export to your LMS</h3>
+              <h3 style={{ fontFamily: "'Playfair Display',serif", color: C.white, fontSize: 18, margin: "0 0 6px" }}>
+                Export to your LMS
+              </h3>
               <p style={{ color: "#9BB5CC", fontSize: 13, margin: "0 0 20px" }}>
                 Download your course in a format ready to import into your course management system.
               </p>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 10 }}>
-                {[
-                  { id: "canvas", icon: "🎨", label: "Canvas CSV", sub: "Import via Canvas Modules" },
-                  { id: "moodle", icon: "🌐", label: "Moodle XML", sub: "Moodle backup format" },
+                {([
+                  { id: "canvas",   icon: "🎨", label: "Canvas CSV",     sub: "Import via Canvas Modules" },
+                  { id: "moodle",   icon: "🌐", label: "Moodle XML",     sub: "Moodle backup format" },
                   { id: "syllabus", icon: "📄", label: "Syllabus (.txt)", sub: "Works with any LMS" },
-                  { id: "json", icon: "⚙️", label: "JSON Data", sub: "Blackboard, D2L, custom" },
-                ].map(({ id, icon, label, sub }) => (
-                  <div key={id} onClick={() => exportFile(id)} style={{
-                    background: exportFlash === id ? "#1A3A2A" : C.slateLight,
-                    borderRadius: 10, padding: "14px 16px", cursor: "pointer",
-                    border: `1.5px solid ${exportFlash === id ? C.success : "transparent"}`,
-                    transition: "all 0.2s",
-                  }}>
+                  { id: "json",     icon: "⚙️", label: "JSON Data",      sub: "Blackboard, D2L, custom" },
+                ] as { id: string; icon: string; label: string; sub: string }[]).map(({ id, icon, label, sub }) => (
+                  <div
+                    key={id}
+                    onClick={() => exportFile(id)}
+                    style={{
+                      background: exportFlash === id ? "#1A3A2A" : C.slateLight,
+                      borderRadius: 10, padding: "14px 16px", cursor: "pointer",
+                      border: `1.5px solid ${exportFlash === id ? C.success : "transparent"}`,
+                      transition: "all 0.2s",
+                    }}
+                  >
                     <div style={{ fontSize: 20, marginBottom: 6 }}>{icon}</div>
                     <div style={{ color: C.white, fontWeight: 600, fontSize: 13 }}>{label}</div>
                     <div style={{ color: "#9BB5CC", fontSize: 11, marginTop: 2 }}>{sub}</div>

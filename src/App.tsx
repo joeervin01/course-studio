@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, CSSProperties, ReactNode } from "react";
+import { useState, useRef, useEffect, type CSSProperties, type ReactNode } from "react";
 
 // ── Design Tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -419,7 +419,7 @@ Include assessments in roughly weeks ${Math.round(numWeeks * 0.25)}, ${Math.roun
 Assessment format: {"title": "...", "description": "...", "points": 100, "measureGoal": "which learning goal this addresses"}
 Make every week substantive, pedagogically sound, and specific to the subject matter.`;
 
-  const proxyUrl = process.env.REACT_APP_API_PROXY_URL;
+  const proxyUrl = import.meta.env.REACT_APP_API_PROXY_URL;
 
   if (proxyUrl) {
     try {
@@ -751,7 +751,7 @@ export default function CourseDesignStudio() {
                 📌 Student Learning Outcomes
               </h3>
               <ol style={{ margin: 0, paddingLeft: 20 }}>
-                {generated.goals?.map((g, i) => (
+                {generated.goals?.map((g: any, i: any) => (
                   <li key={i} style={{ fontFamily: "Inter,sans-serif", fontSize: 13, color: C.text, marginBottom: 6, lineHeight: 1.5 }}>{g}</li>
                 ))}
               </ol>
@@ -764,7 +764,7 @@ export default function CourseDesignStudio() {
                   📊 Grading Breakdown
                 </h3>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                  {generated.gradingBreakdown.map((g, i) => (
+                  {generated.gradingBreakdown.map((g: any, i: any) => (
                     <div key={i} style={{ background: C.ivory, borderRadius: 8, padding: "10px 16px", textAlign: "center" }}>
                       <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, fontWeight: 700, color: C.gold }}>{g.weight}%</div>
                       <div style={{ fontFamily: "Inter,sans-serif", fontSize: 11, color: C.slate, fontWeight: 600 }}>{g.category}</div>
@@ -778,7 +778,7 @@ export default function CourseDesignStudio() {
             <h3 style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, color: C.slate, margin: "20px 0 12px" }}>
               📅 Weekly Schedule
             </h3>
-            {generated.weeks?.map((week, i) => <WeekCard key={i} week={week} index={i} />)}
+            {generated.weeks?.map((week: any,  i: any) => <WeekCard key={i} week={week} index={i} />)}
 
             {/* Export Panel */}
             <div style={{ background: C.slate, borderRadius: 14, padding: 26, marginTop: 32 }}>
